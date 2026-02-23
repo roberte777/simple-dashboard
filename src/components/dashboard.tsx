@@ -4,6 +4,8 @@ import { PrSection } from "@/components/pr-section";
 import { ErrorMessage } from "@/components/error-message";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { usePolling } from "@/hooks/use-polling";
+import { useAuthMethod } from "@/hooks/use-auth-method";
+import { AuthMethodSelect } from "@/components/auth-method-select";
 import { RefreshCw, CircleAlert, Clock } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import type { DashboardResponse, DashboardPR } from "@/lib/types";
@@ -45,9 +47,12 @@ function SectionHeader({ title, turn, count }: SectionHeaderProps) {
 }
 
 export function Dashboard() {
+  const { authMethod, setAuthMethod, patAvailable, patError } =
+    useAuthMethod();
+
   const { data, error, isLoading, isRefreshing, refresh, lastFetchedAt } =
     usePolling<DashboardResponse>({
-      url: "/api/prs",
+      url: `/api/prs?authMethod=${authMethod}`,
       intervalMs: POLL_INTERVAL,
     });
 
@@ -75,6 +80,12 @@ export function Dashboard() {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <AuthMethodSelect
+            authMethod={authMethod}
+            onAuthMethodChange={setAuthMethod}
+            patAvailable={patAvailable}
+            patError={patError}
+          />
           {lastFetchedAt && (
             <span className="text-xs text-muted-foreground">
               Updated {timeAgoShort(lastFetchedAt)}

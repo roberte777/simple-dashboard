@@ -4,6 +4,7 @@ import type {
   GitHubReview,
   GitHubRequestedReviewersResponse,
   GitHubUser,
+  GitHubAuthenticatedUser,
   DashboardPR,
   TurnStatus,
 } from "./types";
@@ -34,6 +35,14 @@ async function githubFetch<T>(url: string, token: string): Promise<T> {
   }
 
   return res.json() as Promise<T>;
+}
+
+// --- User resolution (for PAT mode) ---
+
+export async function fetchAuthenticatedUser(
+  token: string
+): Promise<GitHubAuthenticatedUser> {
+  return githubFetch<GitHubAuthenticatedUser>(`${GITHUB_API}/user`, token);
 }
 
 // --- Search queries ---

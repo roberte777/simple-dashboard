@@ -82,6 +82,14 @@ export function usePolling<T>({
     startPolling();
   }, [fetchData, startPolling]);
 
+  // Reset to fresh loading state when URL changes (e.g. auth method switch)
+  useEffect(() => {
+    isFirstFetch.current = true;
+    setData(null);
+    setError(null);
+    setIsLoading(true);
+  }, [url]);
+
   // Initial fetch + start polling
   useEffect(() => {
     fetchData();

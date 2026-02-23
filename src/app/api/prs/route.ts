@@ -4,6 +4,7 @@ import {
   fetchMyPrs,
   fetchReviewRequests,
   fetchReviewedBy,
+  fetchAuthenticatedUser,
   enrichPr,
 } from "@/lib/github";
 import type {
@@ -24,8 +25,8 @@ function sortPrs(prs: DashboardPR[]): DashboardPR[] {
   });
 }
 
-export async function GET() {
-  // 1. Authenticate
+export async function GET(request: Request) {
+  // 1. Authenticate with Clerk (always required)
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json(
@@ -34,53 +35,90 @@ export async function GET() {
     );
   }
 
-  // 2. Get GitHub OAuth token from Clerk
-  const client = await clerkClient();
+  // 2. Determine auth method from query param
+  const { searchParams } = new URL(request.url);
+  const authMethod = searchParams.get("authMethod") ?? "oauth";
 
   let githubToken: string;
-  try {
-    const tokenResponse = await client.users.getUserOauthAccessToken(
-      userId,
-      "github"
-    );
-    const tokenData = tokenResponse.data[0];
-    if (!tokenData?.token) {
+  let githubUsername: string;
+
+  if (authMethod === "pat") {
+    // --- PAT mode ---
+    const pat = process.env.NEXT_PUBLIC_PAT;
+    if (!pat) {
       return NextResponse.json(
         {
-          error: "No GitHub account connected. Please connect GitHub in your account settings.",
+          error:
+            "Personal Access Token is not configured. Set the NEXT_PUBLIC_PAT environment variable.",
+          code: "PAT_NOT_CONFIGURED",
+        } satisfies DashboardError,
+        { status: 400 }
+      );
+    }
+    githubToken = pat;
+
+    try {
+      const ghUser = await fetchAuthenticatedUser(pat);
+      githubUsername = ghUser.login;
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid Personal Access Token or GitHub API error. Check your token.",
+          code: "GITHUB_API_ERROR",
+        } satisfies DashboardError,
+        { status: 502 }
+      );
+    }
+  } else {
+    // --- OAuth mode ---
+    const client = await clerkClient();
+
+    try {
+      const tokenResponse = await client.users.getUserOauthAccessToken(
+        userId,
+        "github"
+      );
+      const tokenData = tokenResponse.data[0];
+      if (!tokenData?.token) {
+        return NextResponse.json(
+          {
+            error:
+              "No GitHub account connected. Please connect GitHub in your account settings.",
+            code: "NO_GITHUB_ACCOUNT",
+          } satisfies DashboardError,
+          { status: 400 }
+        );
+      }
+      githubToken = tokenData.token;
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "No GitHub account connected. Please connect GitHub in your account settings.",
           code: "NO_GITHUB_ACCOUNT",
         } satisfies DashboardError,
         { status: 400 }
       );
     }
-    githubToken = tokenData.token;
-  } catch {
-    return NextResponse.json(
-      {
-        error: "No GitHub account connected. Please connect GitHub in your account settings.",
-        code: "NO_GITHUB_ACCOUNT",
-      } satisfies DashboardError,
-      { status: 400 }
+
+    const user = await client.users.getUser(userId);
+    const githubAccount = user.externalAccounts.find(
+      (account) => account.provider === "oauth_github"
     );
+    if (!githubAccount?.username) {
+      return NextResponse.json(
+        {
+          error: "No GitHub username found on your account.",
+          code: "NO_GITHUB_ACCOUNT",
+        } satisfies DashboardError,
+        { status: 400 }
+      );
+    }
+    githubUsername = githubAccount.username;
   }
 
-  // 3. Get GitHub username from Clerk external accounts
-  const user = await client.users.getUser(userId);
-  const githubAccount = user.externalAccounts.find(
-    (account) => account.provider === "oauth_github"
-  );
-  if (!githubAccount?.username) {
-    return NextResponse.json(
-      {
-        error: "No GitHub username found on your account.",
-        code: "NO_GITHUB_ACCOUNT",
-      } satisfies DashboardError,
-      { status: 400 }
-    );
-  }
-  const githubUsername = githubAccount.username;
-
-  // 4. Fetch PRs from GitHub
+  // 3. Fetch PRs from GitHub (same for both auth methods)
   try {
     const [myPrItems, reviewRequestItems, reviewedByItems] = await Promise.all([
       fetchMyPrs(githubUsername, githubToken),
@@ -99,7 +137,7 @@ export async function GET() {
         item.user.login.toLowerCase() !== githubUsername.toLowerCase()
     );
 
-    // 5. Enrich each PR with review details
+    // 4. Enrich each PR with review details
     const [myPrs, reviewRequests] = await Promise.all([
       Promise.all(
         myPrItems.map((item) =>

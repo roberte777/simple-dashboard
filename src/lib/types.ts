@@ -1,4 +1,5 @@
 export type TurnStatus = "my-turn" | "their-turn";
+export type AuthMethod = "oauth" | "pat";
 
 // GitHub API response types
 
@@ -46,6 +47,12 @@ export interface GitHubSearchItem {
   }>;
 }
 
+export interface GitHubAuthenticatedUser {
+  login: string;
+  avatar_url: string;
+  id: number;
+}
+
 export interface GitHubSearchResponse {
   total_count: number;
   incomplete_results: boolean;
@@ -86,7 +93,8 @@ export type ErrorCode =
   | "NO_GITHUB_ACCOUNT"
   | "TOKEN_EXPIRED"
   | "GITHUB_API_ERROR"
-  | "UNAUTHORIZED";
+  | "UNAUTHORIZED"
+  | "PAT_NOT_CONFIGURED";
 
 export interface DashboardError {
   error: string;
