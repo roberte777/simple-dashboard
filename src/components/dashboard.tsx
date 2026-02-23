@@ -6,7 +6,8 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { usePolling } from "@/hooks/use-polling";
 import { useAuthMethod } from "@/hooks/use-auth-method";
 import { AuthMethodSelect } from "@/components/auth-method-select";
-import { RefreshCw, CircleAlert, Clock } from "lucide-react";
+import { RefreshCw, CircleAlert, Clock, Columns2, Rows3 } from "lucide-react";
+import { useViewMode } from "@/hooks/use-view-mode";
 import { Separator } from "@/components/ui/separator";
 import type { DashboardResponse, DashboardPR } from "@/lib/types";
 
@@ -49,6 +50,7 @@ function SectionHeader({ title, turn, count }: SectionHeaderProps) {
 export function Dashboard() {
   const { authMethod, setAuthMethod, patAvailable, patError } =
     useAuthMethod();
+  const { viewMode, toggleViewMode } = useViewMode();
 
   const { data, error, isLoading, isRefreshing, refresh, lastFetchedAt } =
     usePolling<DashboardResponse>({
@@ -68,7 +70,7 @@ export function Dashboard() {
   const totalMyTurn = myPrsMyTurn.length + reviewMyTurn.length;
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 py-6">
+    <div className={`w-full max-w-2xl mx-auto px-4 py-6 ${viewMode === "split" ? "lg:max-w-none lg:px-8" : "lg:max-w-4xl"}`}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">PR Dashboard</h1>
@@ -91,6 +93,18 @@ export function Dashboard() {
               Updated {timeAgoShort(lastFetchedAt)}
             </span>
           )}
+          <button
+            onClick={toggleViewMode}
+            className="hidden lg:inline-flex p-2 rounded-md hover:bg-accent transition-colors"
+            aria-label={viewMode === "unified" ? "Switch to split view" : "Switch to unified view"}
+            title={viewMode === "unified" ? "Split view" : "Unified view"}
+          >
+            {viewMode === "unified" ? (
+              <Columns2 className="h-4 w-4" />
+            ) : (
+              <Rows3 className="h-4 w-4" />
+            )}
+          </button>
           <button
             onClick={refresh}
             disabled={isLoading}
@@ -116,69 +130,77 @@ export function Dashboard() {
         <DashboardSkeleton />
       ) : (
         data && (
-          <div className="space-y-8">
-            {/* My PRs — My Turn */}
+          viewMode === "split" ? (
+          <>
+          {/* Small screens: always vertical stack */}
+          <div className="space-y-8 lg:hidden">
             <section>
-              <SectionHeader
-                title="My PRs — My Turn"
-                turn="my-turn"
-                count={myPrsMyTurn.length}
-              />
-              <PrSection
-                prs={myPrsMyTurn}
-                isLoading={false}
-                emptyMessage="Nothing to respond to"
-              />
+              <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
             </section>
-
             <Separator />
-
-            {/* My PRs — Their Turn */}
             <section>
-              <SectionHeader
-                title="My PRs — Their Turn"
-                turn="their-turn"
-                count={myPrsTheirTurn.length}
-              />
-              <PrSection
-                prs={myPrsTheirTurn}
-                isLoading={false}
-                emptyMessage="No PRs waiting on others"
-              />
+              <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
             </section>
-
             <Separator />
-
-            {/* Review Requests — My Turn */}
             <section>
-              <SectionHeader
-                title="Review Requests — My Turn"
-                turn="my-turn"
-                count={reviewMyTurn.length}
-              />
-              <PrSection
-                prs={reviewMyTurn}
-                isLoading={false}
-                emptyMessage="No reviews needed from you"
-              />
+              <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
             </section>
-
             <Separator />
-
-            {/* Review Requests — Their Turn */}
             <section>
-              <SectionHeader
-                title="Review Requests — Their Turn"
-                turn="their-turn"
-                count={reviewTheirTurn.length}
-              />
-              <PrSection
-                prs={reviewTheirTurn}
-                isLoading={false}
-                emptyMessage="No reviews waiting on others"
-              />
+              <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
             </section>
           </div>
+
+          {/* Large screens: 2x2 grid, cols = turn status, rows = PR type */}
+          <div className="hidden lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-8">
+            <section>
+              <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
+            </section>
+            <section>
+              <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
+            </section>
+            <div className="col-span-2">
+              <Separator />
+            </div>
+            <section>
+              <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
+            </section>
+            <section>
+              <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
+            </section>
+          </div>
+          </>
+          ) : (
+          <div className="space-y-8">
+            <section>
+              <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
+            </section>
+            <Separator />
+            <section>
+              <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
+            </section>
+            <Separator />
+            <section>
+              <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
+            </section>
+            <Separator />
+            <section>
+              <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
+            </section>
+          </div>
+          )
         )
       )}
     </div>
