@@ -81,8 +81,10 @@ export function usePolling<T>({
   const refresh = useCallback(() => {
     fetchData();
     // Reset the interval so the next auto-poll is a full interval away
-    startPolling();
-  }, [fetchData, startPolling]);
+    if (enabled) {
+      startPolling();
+    }
+  }, [fetchData, startPolling, enabled]);
 
   // Reset to fresh loading state when URL changes (e.g. auth method switch)
   useEffect(() => {
