@@ -26,6 +26,18 @@ export interface GitHubRequestedReviewersResponse {
   teams: Array<{ name: string; slug: string }>;
 }
 
+/** Subset of the full PR object from GET /repos/{owner}/{repo}/pulls/{number} */
+export interface GitHubPullDetail {
+  mergeable: boolean | null;
+  mergeable_state:
+    | "clean"
+    | "dirty"
+    | "blocked"
+    | "unstable"
+    | "unknown"
+    | null;
+}
+
 export interface GitHubSearchItem {
   id: number;
   number: number;

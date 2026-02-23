@@ -1,12 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { PrSection } from "@/components/pr-section";
 import { ErrorMessage } from "@/components/error-message";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { usePolling } from "@/hooks/use-polling";
 import { useAuthMethod } from "@/hooks/use-auth-method";
 import { AuthMethodSelect } from "@/components/auth-method-select";
-import { RefreshCw, CircleAlert, Clock, Columns2, Rows3 } from "lucide-react";
+import { RefreshCw, CircleAlert, Clock, Columns2, Rows3, Pause, Play } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { Separator } from "@/components/ui/separator";
 import type { DashboardResponse, DashboardPR } from "@/lib/types";
@@ -51,11 +52,13 @@ export function Dashboard() {
   const { authMethod, setAuthMethod, patAvailable, patError } =
     useAuthMethod();
   const { viewMode, toggleViewMode } = useViewMode();
+  const [autoPolling, setAutoPolling] = useState(true);
 
   const { data, error, isLoading, isRefreshing, refresh, lastFetchedAt } =
     usePolling<DashboardResponse>({
       url: `/api/prs?authMethod=${authMethod}`,
       intervalMs: POLL_INTERVAL,
+      enabled: autoPolling,
     });
 
   const myPrsMyTurn = data ? filterByTurn(data.myPrs, "my-turn") : [];
@@ -103,6 +106,18 @@ export function Dashboard() {
               <Columns2 className="h-4 w-4" />
             ) : (
               <Rows3 className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            onClick={() => setAutoPolling((prev) => !prev)}
+            className="p-2 rounded-md hover:bg-accent transition-colors"
+            aria-label={autoPolling ? "Pause auto-refresh" : "Resume auto-refresh"}
+            title={autoPolling ? "Pause auto-refresh" : "Resume auto-refresh"}
+          >
+            {autoPolling ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
             )}
           </button>
           <button

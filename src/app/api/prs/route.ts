@@ -119,25 +119,44 @@ export async function GET(request: Request) {
   }
 
   // 3. Fetch PRs from GitHub (same for both auth methods)
+  let myPrItems: GitHubSearchItem[];
+  let reviewRequestItems: GitHubSearchItem[];
+  let reviewedByItems: GitHubSearchItem[];
+
   try {
-    const [myPrItems, reviewRequestItems, reviewedByItems] = await Promise.all([
+    [myPrItems, reviewRequestItems, reviewedByItems] = await Promise.all([
       fetchMyPrs(githubUsername, githubToken),
       fetchReviewRequests(githubUsername, githubToken),
       fetchReviewedBy(githubUsername, githubToken),
     ]);
-
-    // Deduplicate review requests (merge review-requested + reviewed-by)
-    const reviewItemsMap = new Map<number, GitHubSearchItem>();
-    for (const item of [...reviewRequestItems, ...reviewedByItems]) {
-      reviewItemsMap.set(item.id, item);
-    }
-    // Remove PRs authored by the user (no self-review)
-    const dedupedReviewItems = [...reviewItemsMap.values()].filter(
-      (item) =>
-        item.user.login.toLowerCase() !== githubUsername.toLowerCase()
+  } catch (error) {
+    console.error("[gh-dash] Search queries failed:", error);
+    return NextResponse.json(
+      {
+        error: `GitHub search failed: ${error instanceof Error ? error.message : String(error)}`,
+        code: "GITHUB_API_ERROR",
+      } satisfies DashboardError,
+      { status: 502 }
     );
+  }
 
-    // 4. Enrich each PR with review details
+  console.log(
+    `[gh-dash] Fetched ${myPrItems.length} my PRs, ${reviewRequestItems.length} review-requested, ${reviewedByItems.length} reviewed-by`
+  );
+
+  // Deduplicate review requests (merge review-requested + reviewed-by)
+  const reviewItemsMap = new Map<number, GitHubSearchItem>();
+  for (const item of [...reviewRequestItems, ...reviewedByItems]) {
+    reviewItemsMap.set(item.id, item);
+  }
+  // Remove PRs authored by the user (no self-review)
+  const dedupedReviewItems = [...reviewItemsMap.values()].filter(
+    (item) =>
+      item.user.login.toLowerCase() !== githubUsername.toLowerCase()
+  );
+
+  // 4. Enrich each PR with review details
+  try {
     const [myPrs, reviewRequests] = await Promise.all([
       Promise.all(
         myPrItems.map((item) =>
@@ -158,10 +177,10 @@ export async function GET(request: Request) {
       fetchedAt: new Date().toISOString(),
     } satisfies DashboardResponse);
   } catch (error) {
-    console.error("GitHub API error:", error);
+    console.error("[gh-dash] PR enrichment failed:", error);
     return NextResponse.json(
       {
-        error: "Failed to fetch data from GitHub. Please try again.",
+        error: `GitHub PR enrichment failed: ${error instanceof Error ? error.message : String(error)}`,
         code: "GITHUB_API_ERROR",
       } satisfies DashboardError,
       { status: 502 }

@@ -3,6 +3,7 @@ import type {
     GitHubSearchItem,
     GitHubReview,
     GitHubRequestedReviewersResponse,
+    GitHubPullDetail,
     GitHubUser,
     GitHubAuthenticatedUser,
     DashboardPR,
@@ -116,6 +117,13 @@ async function fetchRequestedReviewers(
     return data.users;
 }
 
+async function fetchPullDetail(
+    pullUrl: string,
+    token: string
+): Promise<GitHubPullDetail> {
+    return githubFetch<GitHubPullDetail>(pullUrl, token);
+}
+
 // --- Turn determination ---
 
 const SUBMITTED_STATES = new Set([
@@ -128,10 +136,10 @@ const SUBMITTED_STATES = new Set([
 function determineMyPrTurn(
     reviews: GitHubReview[],
     requestedReviewers: GitHubUser[],
-    authorUsername: string
+    authorUsername: string,
+    mergeableState: string | null | undefined
 ): TurnStatus {
-    // Get the set of users who have submitted reviews, excluding the PR author
-    // (author's own review comments, e.g. replying to feedback, don't count as actionable feedback)
+    // Step 1: Identify reviewers who have submitted feedback (excluding author)
     const reviewersWhoSubmitted = new Set<string>();
     for (const review of reviews) {
         if (
@@ -142,23 +150,59 @@ function determineMyPrTurn(
         }
     }
 
-    // No reviews submitted yet — waiting on reviewers
+    // Step 2: No reviews submitted yet — waiting on reviewers
     if (reviewersWhoSubmitted.size === 0) {
         return "their-turn";
     }
 
-    // Check if all reviewers who submitted have been re-requested
+    // Step 3: Check if all reviewers who submitted have been re-requested
     const requestedLogins = new Set(
         requestedReviewers.map((r) => r.login.toLowerCase())
     );
-    console.log("submitted: " + [...reviewersWhoSubmitted]);
-    console.log("requested: " + [...requestedLogins]);
     const allReRequested = [...reviewersWhoSubmitted].every((login) =>
         requestedLogins.has(login)
     );
+    if (allReRequested) {
+        return "their-turn";
+    }
 
-    // If I've re-requested reviews from everyone who gave feedback, ball is in their court
-    return allReRequested ? "their-turn" : "my-turn";
+    // Step 4: Compute the latest review state per user (excluding author)
+    const latestByUser = new Map<string, string>();
+    for (const review of reviews) {
+        if (
+            SUBMITTED_STATES.has(review.state) &&
+            review.user.login.toLowerCase() !== authorUsername.toLowerCase()
+        ) {
+            latestByUser.set(review.user.login.toLowerCase(), review.state);
+        }
+    }
+
+    // Step 5: If any reviewer's latest state is CHANGES_REQUESTED, always my-turn
+    const hasChangesRequested = [...latestByUser.values()].some(
+        (state) => state === "CHANGES_REQUESTED"
+    );
+    if (hasChangesRequested) {
+        return "my-turn";
+    }
+
+    // Step 6: No changes requested — check mergeable_state to determine
+    // whether the PR has enough approvals to actually be mergeable.
+    if (mergeableState === "clean") {
+        return "my-turn"; // All branch protection requirements met — ready to merge
+    }
+    if (mergeableState === "blocked") {
+        return "their-turn"; // Insufficient approvals / CODEOWNERS not satisfied
+    }
+    if (mergeableState === "dirty") {
+        return "my-turn"; // Merge conflicts — author needs to resolve
+    }
+    if (mergeableState === "unstable") {
+        return "my-turn"; // Failing checks — author should investigate
+    }
+
+    // Fallback: mergeable_state is null, "unknown", or unexpected.
+    // Conservative fallback to the old behavior (my-turn).
+    return "my-turn";
 }
 
 function determineReviewRequestTurn(
@@ -221,15 +265,23 @@ export async function enrichPr(
     const repo = parseRepo(item.repository_url);
     const [owner, repoName] = repo.split("/");
 
-    const [reviews, requestedReviewers] = await Promise.all([
+    // Only fetch PR detail (for mergeable_state) when needed for my-prs turn logic
+    const pullDetailPromise =
+        section === "my-prs"
+            ? fetchPullDetail(item.pull_request.url, token)
+            : Promise.resolve(null);
+
+    const [reviews, requestedReviewers, pullDetail] = await Promise.all([
         fetchReviews(owner, repoName, item.number, token),
         fetchRequestedReviewers(owner, repoName, item.number, token),
+        pullDetailPromise,
     ]);
 
-    console.log("PR: ", item.title)
+    const mergeableState = pullDetail?.mergeable_state ?? null;
+
     const turnStatus =
         section === "my-prs"
-            ? determineMyPrTurn(reviews, requestedReviewers, item.user.login)
+            ? determineMyPrTurn(reviews, requestedReviewers, item.user.login, mergeableState)
             : determineReviewRequestTurn(reviews, requestedReviewers, myUsername);
 
     const reviewSummary = buildReviewSummary(reviews, requestedReviewers);

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 interface UsePollingOptions {
   url: string;
   intervalMs: number;
+  enabled?: boolean;
 }
 
 interface UsePollingResult<T> {
@@ -19,6 +20,7 @@ interface UsePollingResult<T> {
 export function usePolling<T>({
   url,
   intervalMs,
+  enabled = true,
 }: UsePollingOptions): UsePollingResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,12 +95,16 @@ export function usePolling<T>({
   // Initial fetch + start polling
   useEffect(() => {
     fetchData();
-    startPolling();
+    if (enabled) {
+      startPolling();
+    }
     return stopPolling;
-  }, [fetchData, startPolling, stopPolling]);
+  }, [fetchData, startPolling, stopPolling, enabled]);
 
   // Pause polling when tab is hidden, resume when visible
   useEffect(() => {
+    if (!enabled) return;
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
         stopPolling();
@@ -113,7 +119,7 @@ export function usePolling<T>({
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [fetchData, startPolling, stopPolling]);
+  }, [enabled, fetchData, startPolling, stopPolling]);
 
   return { data, error, isLoading, isRefreshing, refresh, lastFetchedAt };
 }
