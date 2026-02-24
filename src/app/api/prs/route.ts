@@ -131,12 +131,16 @@ export async function GET(request: Request) {
     ]);
   } catch (error) {
     console.error("[gh-dash] Search queries failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const isRateLimited = message.startsWith("RATE_LIMITED:");
     return NextResponse.json(
       {
-        error: `GitHub search failed: ${error instanceof Error ? error.message : String(error)}`,
-        code: "GITHUB_API_ERROR",
+        error: isRateLimited
+          ? message.replace("RATE_LIMITED: ", "")
+          : `GitHub search failed: ${message}`,
+        code: isRateLimited ? "RATE_LIMITED" : "GITHUB_API_ERROR",
       } satisfies DashboardError,
-      { status: 502 }
+      { status: isRateLimited ? 429 : 502 }
     );
   }
 
@@ -178,12 +182,16 @@ export async function GET(request: Request) {
     } satisfies DashboardResponse);
   } catch (error) {
     console.error("[gh-dash] PR enrichment failed:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    const isRateLimited = message.startsWith("RATE_LIMITED:");
     return NextResponse.json(
       {
-        error: `GitHub PR enrichment failed: ${error instanceof Error ? error.message : String(error)}`,
-        code: "GITHUB_API_ERROR",
+        error: isRateLimited
+          ? message.replace("RATE_LIMITED: ", "")
+          : `GitHub PR enrichment failed: ${message}`,
+        code: isRateLimited ? "RATE_LIMITED" : "GITHUB_API_ERROR",
       } satisfies DashboardError,
-      { status: 502 }
+      { status: isRateLimited ? 429 : 502 }
     );
   }
 }

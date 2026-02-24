@@ -7,12 +7,12 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { usePolling } from "@/hooks/use-polling";
 import { useAuthMethod } from "@/hooks/use-auth-method";
 import { AuthMethodSelect } from "@/components/auth-method-select";
-import { RefreshCw, CircleAlert, Clock, Columns2, Rows3, Pause, Play } from "lucide-react";
+import { RefreshCw, CircleAlert, Clock, Columns2, Rows3, Pause, Play, Timer } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
+import { usePollInterval, POLL_INTERVAL_OPTIONS } from "@/hooks/use-poll-interval";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import type { DashboardResponse, DashboardPR } from "@/lib/types";
-
-const POLL_INTERVAL = 30_000; // 30 seconds
 
 function timeAgoShort(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -52,12 +52,13 @@ export function Dashboard() {
   const { authMethod, setAuthMethod, patAvailable, patError } =
     useAuthMethod();
   const { viewMode, toggleViewMode } = useViewMode();
+  const { pollInterval, setPollInterval } = usePollInterval();
   const [autoPolling, setAutoPolling] = useState(true);
 
   const { data, error, isLoading, isRefreshing, refresh, lastFetchedAt } =
     usePolling<DashboardResponse>({
       url: `/api/prs?authMethod=${authMethod}`,
-      intervalMs: POLL_INTERVAL,
+      intervalMs: pollInterval,
       enabled: autoPolling,
     });
 
@@ -91,6 +92,22 @@ export function Dashboard() {
             patAvailable={patAvailable}
             patError={patError}
           />
+          <Select
+            value={String(pollInterval)}
+            onValueChange={(v) => setPollInterval(Number(v))}
+          >
+            <SelectTrigger className="w-[100px] h-8 text-xs">
+              <Timer className="h-3 w-3 mr-1.5" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POLL_INTERVAL_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {lastFetchedAt && (
             <span className="text-xs text-muted-foreground">
               Updated {timeAgoShort(lastFetchedAt)}
@@ -137,7 +154,9 @@ export function Dashboard() {
 
       {error && data && (
         <p className="text-xs text-destructive mb-4">
-          Update failed. Showing stale data.
+          {error.toLowerCase().includes("rate limit")
+            ? "Rate limited by GitHub. Showing stale data. Try increasing the polling interval."
+            : "Update failed. Showing stale data."}
         </p>
       )}
 

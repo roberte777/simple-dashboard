@@ -106,7 +106,8 @@ export type ErrorCode =
   | "TOKEN_EXPIRED"
   | "GITHUB_API_ERROR"
   | "UNAUTHORIZED"
-  | "PAT_NOT_CONFIGURED";
+  | "PAT_NOT_CONFIGURED"
+  | "RATE_LIMITED";
 
 export interface DashboardError {
   error: string;

@@ -29,6 +29,19 @@ async function githubFetch<T>(url: string, token: string): Promise<T> {
     });
 
     if (!res.ok) {
+        // Detect rate limiting: HTTP 429 or 403 with X-RateLimit-Remaining: 0
+        const isRateLimited =
+            res.status === 429 ||
+            (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0");
+
+        if (isRateLimited) {
+            const resetHeader = res.headers.get("x-ratelimit-reset");
+            const resetInfo = resetHeader
+                ? ` Resets at ${new Date(Number(resetHeader) * 1000).toLocaleTimeString()}.`
+                : "";
+            throw new Error(`RATE_LIMITED: GitHub API rate limit exceeded.${resetInfo}`);
+        }
+
         const body = await res.text().catch(() => "");
         throw new Error(
             `GitHub API ${res.status}: ${res.statusText} - ${body.slice(0, 200)}`

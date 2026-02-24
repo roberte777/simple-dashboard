@@ -1,5 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Github, Key } from "lucide-react";
+import { AlertCircle, Github, Key, Timer } from "lucide-react";
 
 interface ErrorMessageProps {
   error: string;
@@ -15,10 +15,16 @@ export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
     error.toLowerCase().includes("personal access token") ||
     error.toLowerCase().includes("pat");
 
+  const isRateLimitError =
+    error.toLowerCase().includes("rate limit");
+
   let icon = <AlertCircle className="h-4 w-4" />;
   let title = "Error";
 
-  if (isGitHubConnectionError) {
+  if (isRateLimitError) {
+    icon = <Timer className="h-4 w-4" />;
+    title = "Rate Limited";
+  } else if (isGitHubConnectionError) {
     icon = <Github className="h-4 w-4" />;
     title = "GitHub Not Connected";
   } else if (isPatError) {
@@ -32,7 +38,12 @@ export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription className="mt-2">
         <p>{error}</p>
-        {isGitHubConnectionError ? (
+        {isRateLimitError ? (
+          <p className="mt-2 text-sm">
+            Try increasing the polling interval using the timer dropdown above,
+            or pause auto-refresh until the limit resets.
+          </p>
+        ) : isGitHubConnectionError ? (
           <p className="mt-2 text-sm">
             Go to your{" "}
             <a href="/user-profile" className="underline font-medium">
