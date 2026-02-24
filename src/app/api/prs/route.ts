@@ -148,6 +148,9 @@ export async function GET(request: Request) {
     `[gh-dash] Fetched ${myPrItems.length} my PRs, ${reviewRequestItems.length} review-requested, ${reviewedByItems.length} reviewed-by`
   );
 
+  // Track which PRs came from review-requested search (user has a pending request)
+  const reviewRequestedIds = new Set(reviewRequestItems.map((item) => item.id));
+
   // Deduplicate review requests (merge review-requested + reviewed-by)
   const reviewItemsMap = new Map<number, GitHubSearchItem>();
   for (const item of [...reviewRequestItems, ...reviewedByItems]) {
@@ -169,7 +172,7 @@ export async function GET(request: Request) {
       ),
       Promise.all(
         dedupedReviewItems.map((item) =>
-          enrichPr(item, githubToken, "review-requests", githubUsername)
+          enrichPr(item, githubToken, "review-requests", githubUsername, reviewRequestedIds.has(item.id))
         )
       ),
     ]);

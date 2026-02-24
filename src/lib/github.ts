@@ -124,12 +124,12 @@ async function fetchRequestedReviewers(
     repo: string,
     prNumber: number,
     token: string
-): Promise<GitHubUser[]> {
+): Promise<{ users: GitHubUser[]; teams: Array<{ name: string; slug: string }> }> {
     const data = await githubFetch<GitHubRequestedReviewersResponse>(
         `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/requested_reviewers`,
         token
     );
-    return data.users;
+    return { users: data.users, teams: data.teams };
 }
 
 async function fetchPullDetail(
@@ -270,11 +270,13 @@ function determineMyPrTurn(
 function determineReviewRequestTurn(
     _reviews: GitHubReview[],
     requestedReviewers: GitHubUser[],
-    myUsername: string
+    requestedTeams: Array<{ name: string; slug: string }>,
+    myUsername: string,
+    isReviewRequested: boolean
 ): { turnStatus: TurnStatus; debugInfo: TurnDebugInfo } {
     const checks: TurnDebugCheck[] = [];
 
-    // My turn if my review is currently requested
+    // Check 1: My turn if my review is individually requested
     const myReviewRequested = requestedReviewers.some(
         (r) => r.login.toLowerCase() === myUsername.toLowerCase()
     );
@@ -285,16 +287,44 @@ function determineReviewRequestTurn(
             ? `Your review is currently requested (pending reviewers: ${requestedNames})`
             : requestedNames
                 ? `Your review is not in the requested list (pending: ${requestedNames})`
-                : "No pending review requests",
-        result: myReviewRequested ? "my-turn" : "their-turn",
+                : "No pending individual review requests",
+        result: myReviewRequested ? "my-turn" : "skip",
+    });
+
+    if (myReviewRequested) {
+        return {
+            turnStatus: "my-turn",
+            debugInfo: {
+                section: "review-requests",
+                checks,
+                decidingCheck: "My review requested",
+            },
+        };
+    }
+
+    // Check 2: My turn if requested via a team
+    // isReviewRequested means the PR was found via review-requested: search (GitHub confirmed involvement).
+    // If not individually requested but teams are pending and search confirmed, user is requested via team.
+    const teamNames = requestedTeams.map((t) => t.name).join(", ");
+    const requestedViaTeam = isReviewRequested && requestedTeams.length > 0;
+    checks.push({
+        label: "My review requested (via team)",
+        value: requestedViaTeam
+            ? `Requested via team (teams: ${teamNames})`
+            : !isReviewRequested
+                ? "PR found via reviewed-by search, not review-requested"
+                : "No team review requests",
+        result: requestedViaTeam ? "my-turn" : "their-turn",
     });
 
     return {
-        turnStatus: myReviewRequested ? "my-turn" : "their-turn",
+        turnStatus: requestedViaTeam ? "my-turn" : "their-turn",
         debugInfo: {
             section: "review-requests",
             checks,
-            decidingCheck: "My review requested",
+            decidingCheck: requestedViaTeam
+                ? "My review requested (via team)"
+                : "My review requested (via team)",
         },
     };
 }
@@ -303,7 +333,8 @@ function determineReviewRequestTurn(
 
 function buildReviewSummary(
     reviews: GitHubReview[],
-    requestedReviewers: GitHubUser[]
+    requestedReviewers: GitHubUser[],
+    requestedTeams: Array<{ name: string; slug: string }>
 ): string {
     const parts: string[] = [];
 
@@ -329,8 +360,12 @@ function buildReviewSummary(
     if (counts["COMMENTED"]) {
         parts.push(`${counts["COMMENTED"]} commented`);
     }
-    if (requestedReviewers.length > 0) {
-        parts.push(`${requestedReviewers.length} pending`);
+    const pendingCount = requestedReviewers.length + requestedTeams.length;
+    if (pendingCount > 0) {
+        const teamSuffix = requestedTeams.length > 0
+            ? ` (${requestedTeams.length} team${requestedTeams.length > 1 ? "s" : ""})`
+            : "";
+        parts.push(`${pendingCount} pending${teamSuffix}`);
     }
 
     return parts.length > 0 ? parts.join(", ") : "No reviews";
@@ -342,7 +377,8 @@ export async function enrichPr(
     item: GitHubSearchItem,
     token: string,
     section: "my-prs" | "review-requests",
-    myUsername: string
+    myUsername: string,
+    isReviewRequested: boolean = false
 ): Promise<DashboardPR> {
     const repo = parseRepo(item.repository_url);
     const [owner, repoName] = repo.split("/");
@@ -353,20 +389,22 @@ export async function enrichPr(
             ? fetchPullDetail(item.pull_request.url, token)
             : Promise.resolve(null);
 
-    const [reviews, requestedReviewers, pullDetail] = await Promise.all([
+    const [reviews, requestedReviewersData, pullDetail] = await Promise.all([
         fetchReviews(owner, repoName, item.number, token),
         fetchRequestedReviewers(owner, repoName, item.number, token),
         pullDetailPromise,
     ]);
 
+    const requestedReviewers = requestedReviewersData.users;
+    const requestedTeams = requestedReviewersData.teams;
     const mergeableState = pullDetail?.mergeable_state ?? null;
 
     const { turnStatus, debugInfo } =
         section === "my-prs"
             ? determineMyPrTurn(reviews, requestedReviewers, item.user.login, mergeableState)
-            : determineReviewRequestTurn(reviews, requestedReviewers, myUsername);
+            : determineReviewRequestTurn(reviews, requestedReviewers, requestedTeams, myUsername, isReviewRequested);
 
-    const reviewSummary = buildReviewSummary(reviews, requestedReviewers);
+    const reviewSummary = buildReviewSummary(reviews, requestedReviewers, requestedTeams);
 
     return {
         id: item.id,
