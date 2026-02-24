@@ -204,13 +204,23 @@ function determineMyPrTurn(
     }
 
     // Step 4: Compute the latest review state per user (excluding author)
+    // On GitHub, COMMENTED does not clear a previous CHANGES_REQUESTED.
+    // Only APPROVED or DISMISSED can override CHANGES_REQUESTED.
     const latestByUser = new Map<string, string>();
     for (const review of reviews) {
         if (
             SUBMITTED_STATES.has(review.state) &&
             review.user.login.toLowerCase() !== authorUsername.toLowerCase()
         ) {
-            latestByUser.set(review.user.login.toLowerCase(), review.state);
+            const login = review.user.login.toLowerCase();
+            const prev = latestByUser.get(login);
+            if (
+                (prev === "CHANGES_REQUESTED" || prev === "APPROVED") &&
+                review.state === "COMMENTED"
+            ) {
+                continue; // COMMENTED does not dismiss CHANGES_REQUESTED or APPROVED
+            }
+            latestByUser.set(login, review.state);
         }
     }
 
@@ -339,9 +349,17 @@ function buildReviewSummary(
     const parts: string[] = [];
 
     // Count latest review state per reviewer
+    // COMMENTED does not override CHANGES_REQUESTED or APPROVED on GitHub
     const latestByUser = new Map<string, string>();
     for (const review of reviews) {
         if (SUBMITTED_STATES.has(review.state)) {
+            const prev = latestByUser.get(review.user.login);
+            if (
+                (prev === "CHANGES_REQUESTED" || prev === "APPROVED") &&
+                review.state === "COMMENTED"
+            ) {
+                continue;
+            }
             latestByUser.set(review.user.login, review.state);
         }
     }
