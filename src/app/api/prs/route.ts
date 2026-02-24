@@ -44,12 +44,12 @@ export async function GET(request: Request) {
 
   if (authMethod === "pat") {
     // --- PAT mode ---
-    const pat = process.env.NEXT_PUBLIC_PAT;
+    const pat = process.env.GITHUB_PAT;
     if (!pat) {
       return NextResponse.json(
         {
           error:
-            "Personal Access Token is not configured. Set the NEXT_PUBLIC_PAT environment variable.",
+            "Personal Access Token is not configured. Set the GITHUB_PAT environment variable.",
           code: "PAT_NOT_CONFIGURED",
         } satisfies DashboardError,
         { status: 400 }

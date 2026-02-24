@@ -53,7 +53,7 @@ export function ErrorMessage({ error, onRetry }: ErrorMessageProps) {
           </p>
         ) : isPatError ? (
           <p className="mt-2 text-sm">
-            Check your <code className="text-xs">NEXT_PUBLIC_PAT</code>{" "}
+            Check your <code className="text-xs">GITHUB_PAT</code>{" "}
             environment variable, or switch to OAuth using the dropdown above.
           </p>
         ) : (

@@ -47,13 +47,13 @@ Tailwind CSS v4 with `@tailwindcss/postcss`. Colors use OKLCH color space define
 
 ### Auth
 
-Clerk handles authentication. The middleware (`src/middleware.ts`) protects API routes. Two auth methods: Clerk OAuth (default) or Personal Access Token via `NEXT_PUBLIC_PAT` env var. GitHub username is resolved from Clerk external accounts.
+Clerk handles authentication. The middleware (`src/middleware.ts`) protects API routes. Two auth methods: Clerk OAuth (default) or Personal Access Token via `GITHUB_PAT` env var (server-only). GitHub username is resolved from Clerk external accounts.
 
 ### Environment Variables
 
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` — Clerk auth
 - `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` — Clerk redirects
-- `NEXT_PUBLIC_PAT` — Optional GitHub Personal Access Token (bypasses OAuth)
+- `GITHUB_PAT` — Optional GitHub Personal Access Token (server-only, bypasses OAuth)
 
 ### Path Alias
 
