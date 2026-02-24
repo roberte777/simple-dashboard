@@ -8,6 +8,8 @@ import type {
     GitHubAuthenticatedUser,
     DashboardPR,
     TurnStatus,
+    TurnDebugCheck,
+    TurnDebugInfo,
 } from "./types";
 
 const GITHUB_API = "https://api.github.com";
@@ -151,7 +153,10 @@ function determineMyPrTurn(
     requestedReviewers: GitHubUser[],
     authorUsername: string,
     mergeableState: string | null | undefined
-): TurnStatus {
+): { turnStatus: TurnStatus; debugInfo: TurnDebugInfo } {
+    const checks: TurnDebugCheck[] = [];
+    let decidingCheck = "";
+
     // Step 1: Identify reviewers who have submitted feedback (excluding author)
     const reviewersWhoSubmitted = new Set<string>();
     for (const review of reviews) {
@@ -164,8 +169,17 @@ function determineMyPrTurn(
     }
 
     // Step 2: No reviews submitted yet — waiting on reviewers
-    if (reviewersWhoSubmitted.size === 0) {
-        return "their-turn";
+    const noReviews = reviewersWhoSubmitted.size === 0;
+    checks.push({
+        label: "No reviews submitted yet",
+        value: noReviews
+            ? "No reviewers have submitted feedback"
+            : `${reviewersWhoSubmitted.size} reviewer(s) submitted: ${[...reviewersWhoSubmitted].join(", ")}`,
+        result: noReviews ? "their-turn" : "skip",
+    });
+    if (noReviews) {
+        decidingCheck = "No reviews submitted yet";
+        return { turnStatus: "their-turn", debugInfo: { section: "my-prs", checks, decidingCheck } };
     }
 
     // Step 3: Check if all reviewers who submitted have been re-requested
@@ -175,8 +189,18 @@ function determineMyPrTurn(
     const allReRequested = [...reviewersWhoSubmitted].every((login) =>
         requestedLogins.has(login)
     );
+    checks.push({
+        label: "All submitters re-requested",
+        value: allReRequested
+            ? `All reviewers re-requested: ${[...reviewersWhoSubmitted].join(", ")}`
+            : requestedLogins.size > 0
+                ? `Re-requested: ${[...requestedLogins].join(", ")} (not all submitters)`
+                : "No re-requests pending",
+        result: allReRequested ? "their-turn" : "skip",
+    });
     if (allReRequested) {
-        return "their-turn";
+        decidingCheck = "All submitters re-requested";
+        return { turnStatus: "their-turn", debugInfo: { section: "my-prs", checks, decidingCheck } };
     }
 
     // Step 4: Compute the latest review state per user (excluding author)
@@ -194,40 +218,85 @@ function determineMyPrTurn(
     const hasChangesRequested = [...latestByUser.values()].some(
         (state) => state === "CHANGES_REQUESTED"
     );
+    const latestStates = [...latestByUser.entries()].map(([u, s]) => `${u}: ${s}`).join(", ");
+    checks.push({
+        label: "Changes requested",
+        value: hasChangesRequested
+            ? `Changes requested found (${latestStates})`
+            : `No changes requested (${latestStates || "none"})`,
+        result: hasChangesRequested ? "my-turn" : "skip",
+    });
     if (hasChangesRequested) {
-        return "my-turn";
+        decidingCheck = "Changes requested";
+        return { turnStatus: "my-turn", debugInfo: { section: "my-prs", checks, decidingCheck } };
     }
 
-    // Step 6: No changes requested — check mergeable_state to determine
-    // whether the PR has enough approvals to actually be mergeable.
-    if (mergeableState === "clean") {
-        return "my-turn"; // All branch protection requirements met — ready to merge
+    // Step 6: No changes requested — check mergeable_state
+    const stateStr = mergeableState ?? "null";
+    let mergeResult: TurnStatus;
+    let mergeDesc: string;
+    switch (mergeableState) {
+        case "clean":
+            mergeResult = "my-turn";
+            mergeDesc = "Ready to merge — all branch protection met";
+            break;
+        case "blocked":
+            mergeResult = "their-turn";
+            mergeDesc = "Insufficient approvals / CODEOWNERS not satisfied";
+            break;
+        case "dirty":
+            mergeResult = "my-turn";
+            mergeDesc = "Merge conflicts — author needs to resolve";
+            break;
+        case "unstable":
+            mergeResult = "my-turn";
+            mergeDesc = "Failing checks — author should investigate";
+            break;
+        default:
+            mergeResult = "my-turn";
+            mergeDesc = "Unknown/null — conservative fallback";
+            break;
     }
-    if (mergeableState === "blocked") {
-        return "their-turn"; // Insufficient approvals / CODEOWNERS not satisfied
-    }
-    if (mergeableState === "dirty") {
-        return "my-turn"; // Merge conflicts — author needs to resolve
-    }
-    if (mergeableState === "unstable") {
-        return "my-turn"; // Failing checks — author should investigate
-    }
+    checks.push({
+        label: `Mergeable state: ${stateStr}`,
+        value: mergeDesc,
+        result: mergeResult,
+    });
+    decidingCheck = `Mergeable state: ${stateStr}`;
 
-    // Fallback: mergeable_state is null, "unknown", or unexpected.
-    // Conservative fallback to the old behavior (my-turn).
-    return "my-turn";
+    return { turnStatus: mergeResult, debugInfo: { section: "my-prs", checks, decidingCheck } };
 }
 
 function determineReviewRequestTurn(
     _reviews: GitHubReview[],
     requestedReviewers: GitHubUser[],
     myUsername: string
-): TurnStatus {
+): { turnStatus: TurnStatus; debugInfo: TurnDebugInfo } {
+    const checks: TurnDebugCheck[] = [];
+
     // My turn if my review is currently requested
     const myReviewRequested = requestedReviewers.some(
         (r) => r.login.toLowerCase() === myUsername.toLowerCase()
     );
-    return myReviewRequested ? "my-turn" : "their-turn";
+    const requestedNames = requestedReviewers.map((r) => r.login).join(", ");
+    checks.push({
+        label: "My review requested",
+        value: myReviewRequested
+            ? `Your review is currently requested (pending reviewers: ${requestedNames})`
+            : requestedNames
+                ? `Your review is not in the requested list (pending: ${requestedNames})`
+                : "No pending review requests",
+        result: myReviewRequested ? "my-turn" : "their-turn",
+    });
+
+    return {
+        turnStatus: myReviewRequested ? "my-turn" : "their-turn",
+        debugInfo: {
+            section: "review-requests",
+            checks,
+            decidingCheck: "My review requested",
+        },
+    };
 }
 
 // --- Review summary ---
@@ -292,7 +361,7 @@ export async function enrichPr(
 
     const mergeableState = pullDetail?.mergeable_state ?? null;
 
-    const turnStatus =
+    const { turnStatus, debugInfo } =
         section === "my-prs"
             ? determineMyPrTurn(reviews, requestedReviewers, item.user.login, mergeableState)
             : determineReviewRequestTurn(reviews, requestedReviewers, myUsername);
@@ -310,6 +379,7 @@ export async function enrichPr(
             avatarUrl: item.user.avatar_url,
         },
         turnStatus,
+        turnDebugInfo: debugInfo,
         isDraft: item.draft ?? false,
         createdAt: item.created_at,
         updatedAt: item.updated_at,

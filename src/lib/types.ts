@@ -1,6 +1,18 @@
 export type TurnStatus = "my-turn" | "their-turn";
 export type AuthMethod = "oauth" | "pat";
 
+export interface TurnDebugCheck {
+  label: string;
+  value: string;
+  result: "my-turn" | "their-turn" | "skip";
+}
+
+export interface TurnDebugInfo {
+  section: "my-prs" | "review-requests";
+  checks: TurnDebugCheck[];
+  decidingCheck: string; // label of the check that determined the outcome
+}
+
 // GitHub API response types
 
 export interface GitHubUser {
@@ -84,6 +96,7 @@ export interface DashboardPR {
     avatarUrl: string;
   };
   turnStatus: TurnStatus;
+  turnDebugInfo?: TurnDebugInfo;
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;

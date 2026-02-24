@@ -7,7 +7,7 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { usePolling } from "@/hooks/use-polling";
 import { useAuthMethod } from "@/hooks/use-auth-method";
 import { AuthMethodSelect } from "@/components/auth-method-select";
-import { RefreshCw, CircleAlert, Clock, Columns2, Rows3, Pause, Play, Timer } from "lucide-react";
+import { RefreshCw, CircleAlert, Clock, Columns2, Rows3, Pause, Play, Timer, Bug } from "lucide-react";
 import { useViewMode } from "@/hooks/use-view-mode";
 import { usePollInterval, POLL_INTERVAL_OPTIONS } from "@/hooks/use-poll-interval";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -54,6 +54,7 @@ export function Dashboard() {
   const { viewMode, toggleViewMode } = useViewMode();
   const { pollInterval, setPollInterval } = usePollInterval();
   const [autoPolling, setAutoPolling] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
 
   const { data, error, isLoading, isRefreshing, refresh, lastFetchedAt } =
     usePolling<DashboardResponse>({
@@ -133,6 +134,14 @@ export function Dashboard() {
             )}
           </button>
           <button
+            onClick={() => setShowDebug((prev) => !prev)}
+            className={`p-2 rounded-md transition-colors ${showDebug ? "bg-accent text-accent-foreground" : "hover:bg-accent"}`}
+            aria-label={showDebug ? "Hide turn debug info" : "Show turn debug info"}
+            title={showDebug ? "Hide turn debug info" : "Show turn debug info"}
+          >
+            <Bug className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => setAutoPolling((prev) => !prev)}
             className="p-2 rounded-md hover:bg-accent transition-colors"
             aria-label={autoPolling ? "Pause auto-refresh" : "Resume auto-refresh"}
@@ -177,22 +186,22 @@ export function Dashboard() {
           <div className="space-y-8 lg:hidden">
             <section>
               <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
-              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
-              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
-              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
-              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" showDebug={showDebug} />
             </section>
           </div>
 
@@ -200,22 +209,22 @@ export function Dashboard() {
           <div className="hidden lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-8">
             <section>
               <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
-              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" showDebug={showDebug} />
             </section>
             <section>
               <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
-              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" showDebug={showDebug} />
             </section>
             <div className="col-span-2">
               <Separator />
             </div>
             <section>
               <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
-              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" showDebug={showDebug} />
             </section>
             <section>
               <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
-              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" showDebug={showDebug} />
             </section>
           </div>
           </>
@@ -223,22 +232,22 @@ export function Dashboard() {
           <div className="space-y-8">
             <section>
               <SectionHeader title="My PRs — My Turn" turn="my-turn" count={myPrsMyTurn.length} />
-              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" />
+              <PrSection prs={myPrsMyTurn} isLoading={false} emptyMessage="Nothing to respond to" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="My PRs — Their Turn" turn="their-turn" count={myPrsTheirTurn.length} />
-              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" />
+              <PrSection prs={myPrsTheirTurn} isLoading={false} emptyMessage="No PRs waiting on others" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="Review Requests — My Turn" turn="my-turn" count={reviewMyTurn.length} />
-              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" />
+              <PrSection prs={reviewMyTurn} isLoading={false} emptyMessage="No reviews needed from you" showDebug={showDebug} />
             </section>
             <Separator />
             <section>
               <SectionHeader title="Review Requests — Their Turn" turn="their-turn" count={reviewTheirTurn.length} />
-              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" />
+              <PrSection prs={reviewTheirTurn} isLoading={false} emptyMessage="No reviews waiting on others" showDebug={showDebug} />
             </section>
           </div>
           )

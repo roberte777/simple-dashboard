@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { GitPullRequest } from "lucide-react";
+import { TurnDebugPanel } from "@/components/turn-debug-panel";
 import type { DashboardPR } from "@/lib/types";
 
 interface PrCardProps {
   pr: DashboardPR;
+  showDebug?: boolean;
 }
 
 function timeAgo(dateStr: string): string {
@@ -22,7 +24,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export function PrCard({ pr }: PrCardProps) {
+export function PrCard({ pr, showDebug }: PrCardProps) {
   return (
     <Card className={pr.isDraft ? "border-dashed opacity-75" : ""}>
       <CardHeader className="pb-2">
@@ -84,6 +86,9 @@ export function PrCard({ pr }: PrCardProps) {
               </span>
             ))}
           </div>
+        )}
+        {showDebug && pr.turnDebugInfo && (
+          <TurnDebugPanel debugInfo={pr.turnDebugInfo} />
         )}
       </CardContent>
     </Card>

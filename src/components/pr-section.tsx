@@ -7,9 +7,10 @@ interface PrSectionProps {
   prs: DashboardPR[] | undefined;
   isLoading: boolean;
   emptyMessage: string;
+  showDebug?: boolean;
 }
 
-export function PrSection({ prs, isLoading, emptyMessage }: PrSectionProps) {
+export function PrSection({ prs, isLoading, emptyMessage, showDebug }: PrSectionProps) {
   if (isLoading && !prs) {
     return <DashboardSkeleton />;
   }
@@ -26,7 +27,7 @@ export function PrSection({ prs, isLoading, emptyMessage }: PrSectionProps) {
   return (
     <div className="space-y-3">
       {prs.map((pr) => (
-        <PrCard key={pr.id} pr={pr} />
+        <PrCard key={pr.id} pr={pr} showDebug={showDebug} />
       ))}
     </div>
   );
