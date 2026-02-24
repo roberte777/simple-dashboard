@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PrSection } from "@/components/pr-section";
 import { ErrorMessage } from "@/components/error-message";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
@@ -61,6 +61,13 @@ export function Dashboard() {
       intervalMs: pollInterval,
       enabled: autoPolling,
     });
+
+  // Re-render every 5s so the "Updated Xs ago" text stays current
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 5_000);
+    return () => clearInterval(id);
+  }, []);
 
   const myPrsMyTurn = data ? filterByTurn(data.myPrs, "my-turn") : [];
   const myPrsTheirTurn = data ? filterByTurn(data.myPrs, "their-turn") : [];
